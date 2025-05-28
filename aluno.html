@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/5/w3.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.min.js"></script>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1,
+        .header h6 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #qr-reader,
+        #qr-reader-results {
+            margin-top: 20px;
+        }
+
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(40, 167, 69, 0.9);
+            /* Verde para sucesso */
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .popup-content i {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        #heartRateDataDisplay {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #dc3545;
+            /* Vermelho para FC */
+        }
+
+        #heartRateDataDisplay i.fa-fire {
+            color: red;
+            margin-left: 15px;
+            font-size: 0.8em;
+        }
+
+        #caloriesBurnedDisplay {
+            font-size: 0.8em;
+            margin-left: 5px;
+            color: #dc3545;
+            /* Vermelho para FC */
+        }
+
+        #chartContainer {
+            margin-top: 30px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            /* Espaçamento entre os campos */
+            margin-bottom: 15px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+            /* Para os campos ocuparem o espaço disponível */
+        }
+
+        .form-row .form-group.col-md-auto {
+            flex: unset;
+            /* Para campos com largura automática, como o select */
+            width: 100%;
+            /* Ajuste para preencher a linha se estiver sozinho */
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Sistema de Inventário e Frequência Cardíaca</h1>
+            <h6>Escaneie o código, digite seus dados e conecte seu frequencímetro.</h6>
+        </div>
+        <form>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="nameInput">Seu Nome:</label>
+                    <input type="text" class="form-control" id="nameInput" placeholder="Digite seu nome">
+                </div>
+                <div class="form-group">
+                    <label for="ageInput">Idade:</label>
+                    <input type="number" class="form-control" id="ageInput" placeholder="Sua idade" min="1">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="genderSelect">Sexo:</label>
+                    <select class="form-control" id="genderSelect">
+                        <option value="">Selecione</option>
+                        <option value="male">Masculino</option>
+                        <option value="female">Feminino</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="heightInput">Altura (cm):</label>
+                    <input type="number" class="form-control" id="heightInput" placeholder="Sua altura em cm" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="weightInput">Peso (kg):</label>
+                    <input type="number" class="form-control" id="weightInput" placeholder="Seu peso em kg" min="1">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group col-md-auto">
+                    <label for="activityLevelSelect">Nível de Atividade Física:</label>
+                    <select class="form-control" id="activityLevelSelect">
+                        <option value="">Selecione</option>
+                        <option value="1.2">Sedentário (pouco ou nenhum exercício)</option>
+                        <option value="1.375">Levemente Ativo (exercício leve 1-3 dias/sem)</option>
+                        <option value="1.55">Moderadamente Ativo (exercício moderado 3-5 dias/sem)</option>
+                        <option value="1.725">Muito Ativo (exercício intenso 6-7 dias/sem)</option>
+                        <option value="1.9">Extremamente Ativo (exercício muito intenso, trabalho físico)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="qr-reader" style="width: 100%;"></div>
+            <div id="qr-reader-results"></div>
+
+            <hr>
+
+            <div class="form-group">
+                <button type="button" class="btn btn-danger btn-lg btn-block" id="connectBluetoothBtn">
+                    <i class="fas fa-heartbeat"></i> Conectar Frequencímetro Bluetooth
+                </button>
+            </div>
+
+            <div id="heartRateDataDisplay">
+                <i class="fas fa-heartbeat"></i>
+                <span id="heartRateDisplay"> Aguardando dados...</span>
+                <i class="fas fa-fire"></i>
+                <span id="caloriesBurnedDisplay">0 kcal</span>
+            </div>
+
+            <div id="chartContainer">
+                <canvas id="heartRateChart"></canvas>
+            </div>
+
+            <div class="popup" id="successPopup">
+                <div class="popup-content">
+                    <i class="fas fa-check-circle"></i>
+                    <p>Inventário Adicionado com Sucesso!</p>
+                </div>
+            </div>
+            <div class="popup" id="bluetoothStatusPopup" style="background-color: rgba(0, 123, 255, 0.9);">
+                <div class="popup-content">
+                    <i class="fas fa-bluetooth-b"></i>
+                    <p id="bluetoothStatusText">Status Bluetooth...</p>
+                </div>
+            </div>
+        </form>
+    </div>
+
+
+    <div class="w3-row-padding">
+        <div class="w3-third">
+            <div id="statusUsername1" class="w3-container w3-lime w3-round-xlarge w3-margin-bottom w3-center">
+                <h2 id="Username1">w3-third</h2>
+                <div class="w3-half w3-center w3-margin-bottom">
+                    <i class="fas fa-heartbeat w3-xxlarge"></i>
+                    <span id="heartRateDisplay1"> Aguardando dados...</span>
+                </div>
+                <div class="w3-half w3-center w3-margin-bottom">
+                    <i class="fas fa-fire w3-xxlarge"></i>
+                    <span id="caloriesBurnedDisplay1">0 kcal</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Google Analytics (mantido do seu código original)
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-CQ5SNBFVJE');
+
+        // Seu código para QR Code
+        var resultContainer = document.getElementById('qr-reader-results');
+        var lastResult, countResults = 0;
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            if (decodedText !== lastResult) {
+                ++countResults;
+                lastResult = decodedText;
+
+                // Coleta de todos os dados do formulário para enviar ao Apps Script
+                var name = document.getElementById("nameInput").value;
+                var age = document.getElementById("ageInput").value;
+                var gender = document.getElementById("genderSelect").value;
+                var height = document.getElementById("heightInput").value;
+                var weight = document.getElementById("weightInput").value;
+                var activityLevel = document.getElementById("activityLevelSelect").value;
+
+                var data = {
+                    name: name,
+                    age: age,
+                    gender: gender,
+                    height: height,
+                    weight: weight,
+                    activityLevel: activityLevel,
+                    qrCode: decodedText
+                };
+
+                // Enviando dados para o Google Apps Script
+                google.script.run.sendback(data);
+
+                await waitme();
+                $('#qr-reader-results').prepend("<p class='animated'>" + decodedText + "</p>");
+                showPopup('successPopup');
+            }
+        }
+
+        setTimeout(function () {
+            var html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: 250 });
+            html5QrcodeScanner.render(onScanSuccess);
+        }, 500);
+
+        function waitme() {
+            return new Promise(function (resolve) {
+                setTimeout(function () {
+                    resolve('ok');
+                }, 1000);
+            });
+        }
+
+        window.addEventListener('beforeunload', function (e) {
+            e.preventDefault();
+            e.returnValue = '3';
+        });
+
+
+        
+    // ========== CÓDIGO DO WEBSOCKET ==========
+// ========== WEBSOCKET MODIFICADO ==========
+const socket = new WebSocket('wss://heartrate-monitor.onrender.com');
+let studentId = localStorage.getItem('studentId') || 'student-' + Math.random().toString(36).substr(2, 9);
+localStorage.setItem('studentId', studentId);
+
+// Monitorar conexão
+socket.onopen = function(e) {
+    console.log("Conectado ao servidor de monitoramento");
+    document.getElementById('bluetoothStatusText').textContent = "Conectado ao servidor";
+};
+
+socket.onerror = function(error) {
+    console.log("Erro WebSocket:", error.message);
+    document.getElementById('bluetoothStatusText').textContent = "Erro de conexão";
+};
+
+socket.onclose = function() {
+    console.log("Conexão fechada");
+    document.getElementById('bluetoothStatusText').textContent = "Conexão perdida - reconectando...";
+    setTimeout(() => window.location.reload(), 5000);
+};
+
+// Função para enviar dados (será chamada pelo handleHeartRateMeasurement)
+function sendToServer(heartRate, calories) {
+    if (socket.readyState === WebSocket.OPEN) {
+        const data = {
+            id: studentId,
+            name: document.getElementById("nameInput").value || "Aluno",
+            heartRate: heartRate,
+            calories: calories,
+            age: parseInt(document.getElementById("ageInput").value) || 25,
+            timestamp: Date.now()
+        };
+        socket.send(JSON.stringify(data));
+        console.log("Dados enviados:", data);
+    }
+}
+    
+    // Função para enviar dados ao servidor
+    function sendDataToServer(heartRate) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        
+        const name = document.getElementById("nameInput").value || "Aluno Desconhecido";
+        const age = parseInt(document.getElementById("ageInput").value) || 25;
+        const calories = parseFloat(document.getElementById("caloriesBurnedDisplay").textContent) || 0;
+        
+        const data = {
+            type: 'student_data',
+            studentId: studentId || generateStudentId(),
+            name: name,
+            heartRate: heartRate,
+            calories: calories,
+            age: age
+        };
+        
+        socket.send(JSON.stringify(data));
+    }
+    
+    // Conectar ao servidor quando a página carregar
+    //window.addEventListener('load', connectToDashboardServer);
+    
+    // ========== MODIFICAÇÃO DA FUNÇÃO EXISTENTE ==========
+
+        // Função para mostrar um popup
+        function showPopup(popupId, message = '') {
+            var popup = document.getElementById(popupId);
+            if (popup) {
+                if (popupId === 'bluetoothStatusPopup' && message) {
+                    document.getElementById('bluetoothStatusText').innerText = message;
+                }
+                popup.style.display = 'block';
+                setTimeout(function () {
+                    popup.style.display = 'none';
+                }, 3000); // Esconde o popup após 3 segundos
+            }
+        }
+
+        // --- Início do código para Frequência Cardíaca via Web Bluetooth API e Cálculo de Calorias ---
+        const HEART_RATE_SERVICE_UUID = 'heart_rate'; // UUID do serviço de frequência cardíaca
+        const HEART_RATE_MEASUREMENT_CHARACTERISTIC_UUID = 'heart_rate_measurement'; // UUID da característica de medição
+
+        let heartRateDevice;
+        let heartRateChart;
+        let heartRateData = []; // Armazena as últimas X leituras
+        let heartRateLabels = []; // Armazena os timestamps ou contadores
+        const MAX_DATA_POINTS = 20; // Número máximo de pontos no gráfico
+        let totalCaloriesBurned = 0; // Acumulador de calorias queimadas
+        let maxHeartRate = 0; // Armazenará a FCM do usuário
+
+        // Inicializa o gráfico Chart.js
+        const ctx = document.getElementById('heartRateChart').getContext('2d');
+        heartRateChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: heartRateLabels,
+                datasets: [{
+                    label: 'Frequência Cardíaca (bpm)',
+                    data: heartRateData,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Batimentos por Minuto (bpm)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tempo'
+                        }
+                    }
+                },
+                animation: {
+                    duration: 0 // Desativa a animação para atualizações rápidas
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                }
+            }
+        });
+
+        // Função para calcular calorias queimadas
+        function calculateCaloriesBurned(heartRate) {
+            const age = parseFloat(document.getElementById("ageInput").value);
+            const gender = document.getElementById("genderSelect").value;
+            const weight = parseFloat(document.getElementById("weightInput").value); // em kg
+
+            if (isNaN(age) || isNaN(weight) || !gender || heartRate <= 0) {
+                console.warn("Dados insuficientes para cálculo de calorias.");
+                return 0;
+            }
+
+            // Gasto Calórico (kcal/min) usando a fórmula com FC
+            // Fórmula adaptada para exercício cardiovascular
+            // Homens: ((0.2017 * idade) + (0.09036 * peso_kg) + (0.6309 * FC) - 55.0969) * tempo_min / 4.184
+            // Mulheres: ((0.074 * idade) - (0.05741 * peso_kg) + (0.4472 * FC) - 20.4022) * tempo_min / 4.184
+
+            let caloriesPerMinute = 0;
+            const timeInterval = 5 / 60; // Gasto por 5 segundos, convertido para minutos
+
+            if (gender === 'male') {
+                caloriesPerMinute = ((0.2017 * age) + (0.09036 * weight) + (0.6309 * heartRate) - 55.0969);
+            } else if (gender === 'female') {
+                caloriesPerMinute = ((0.074 * age) - (0.05741 * weight) + (0.4472 * heartRate) - 20.4022);
+            }
+
+            // A fórmula original resulta em ml/kg/min de oxigênio, que é convertida para kcal
+            // 1 MET = 3.5 ml/kg/min. 1 litro de O2 queima ~5 kcal.
+            // Esta simplificação de fórmula é mais direta para estimar kcal/min a partir de FC.
+            // Dividimos por 4.184 (kcal/min para kj/min) para obter kcal/min de uma maneira diferente,
+            // mas o mais correto é usar a fórmula completa baseada em METs ou vo2.
+            // Para simplificar e manter a lógica com FC, vamos usar uma versão mais direta:
+            // kCal/min = (0.00014 * peso_kg * FC_bpm * tempo_min)
+            // Esta é uma simplificação. Uma abordagem mais precisa seria:
+            // Para Homens: ((0.6309 * FC) + (0.1988 * Peso) + (0.2017 * Idade) - 55.0969) * tempo / 4.184
+            // Para Mulheres: ((0.4472 * FC) - (0.0574 * Peso) + (0.074 * Idade) - 20.4022) * tempo / 4.184
+            // Essas fórmulas são para gasto de energia durante o exercício em kJ/min.
+            // Para obter kcal/min, dividimos por 4.184.
+
+            // Vamos usar uma versão mais robusta baseada em METs, que é mais comum
+            // e depois converter para kcal/min.
+            // A fórmula de gasto calórico com base em METs:
+            // Calorias (kcal) = METs * Peso (kg) * Tempo (horas)
+            // METs podem ser estimados a partir da FC, mas é complexo.
+            // Para fins de demonstração, vamos usar uma fórmula mais simplificada para kcal/min:
+            // Homem: ((-95.7735 + (0.634 * FC) + (0.404 * idade) + (0.394 * peso_kg) + (0.271 * altura_cm)) / 4.184) / 60
+            // Mulher: ((-59.3954 + (0.450 * FC) + (0.274 * idade) + (0.103 * peso_kg) + (0.380 * altura_cm)) / 4.184) / 60
+
+            let caloriesBurnedFiveSeconds = 0;
+            const height = parseFloat(document.getElementById("heightInput").value); // em cm
+
+            if (gender === 'male') {
+                caloriesBurnedFiveSeconds = ((-95.7735 + (0.634 * heartRate) + (0.404 * age) + (0.394 * weight) + (0.271 * height)) / 4.184) * (5 / 3600); // Para 5 segundos
+            } else if (gender === 'female') {
+                caloriesBurnedFiveSeconds = ((-59.3954 + (0.450 * heartRate) + (0.274 * age) + (0.103 * weight) + (0.380 * height)) / 4.184) * (5 / 3600); // Para 5 segundos
+            }
+
+            // Certifique-se de que o valor não seja negativo
+            return Math.max(0, caloriesBurnedFiveSeconds);
+        }
+
+        // Função para atualizar a cor da div com base na FCM
+function updateHeartRateZoneColor(currentHeartRate) {
+    const cards = [
+        document.getElementById('statusUsername1'), 
+        // Adicione outros cards se necessário
+    ];
+
+    cards.forEach(card => {
+        if (!card) return;
+
+        const age = parseInt(document.getElementById("ageInput").value) || 25;
+        const maxHR = 220 - age;
+        const percentage = (currentHeartRate / maxHR) * 100;
+
+        // Reset classes
+        card.className = 'w3-container w3-round-xlarge w3-margin-bottom w3-center';
+
+        // Adiciona classe conforme zona
+        if (percentage < 50) {
+            card.classList.add('w3-lime');
+        } else if (percentage < 60) {
+            card.classList.add('w3-blue');
+        } else if (percentage < 70) {
+            card.classList.add('w3-green');
+        } else if (percentage < 80) {
+            card.classList.add('w3-yellow');
+        } else if (percentage < 90) {
+            card.classList.add('w3-orange');
+        } else {
+            card.classList.add('w3-red');
+        }
+    });
+}
+
+        // Função para atualizar o gráfico e exibir calorias
+        function updateChartAndCalories(heartRate) {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+
+            heartRateData.push(heartRate);
+            heartRateLabels.push(timeLabel);
+
+            // Mantém apenas os últimos MAX_DATA_POINTS
+            if (heartRateData.length > MAX_DATA_POINTS) {
+                heartRateData.shift();
+                heartRateLabels.shift();
+            }
+
+            heartRateChart.update(); // Atualiza o gráfico
+            document.getElementById('heartRateDisplay').innerText = ` FC: ${heartRate} bpm`;
+            document.getElementById('heartRateDisplay1').innerText = ` FC: ${heartRate} bpm`;
+
+            // Calcular e exibir calorias queimadas
+            const caloriesThisInterval = calculateCaloriesBurned(heartRate);
+            if (!isNaN(caloriesThisInterval)) {
+                totalCaloriesBurned += caloriesThisInterval;
+                document.getElementById('caloriesBurnedDisplay').innerText = `${totalCaloriesBurned.toFixed(2)} kcal`;
+                document.getElementById('caloriesBurnedDisplay1').innerText = `${totalCaloriesBurned.toFixed(2)} kcal`;
+            }
+
+            // Atualiza a cor da div com base na zona de FC
+            updateHeartRateZoneColor(heartRate);
+        }
+
+        // Função para lidar com as notificações da característica de medição de FC
+        function handleHeartRateMeasurement(event) {
+    const value = event.target.value;
+    let offset = 0;
+    const flags = value.getUint8(offset++);
+    let heartRate = flags & 0x01 ? value.getUint16(offset, true) : value.getUint8(offset);
+    
+    console.log('Frequência Cardíaca:', heartRate, 'bpm');
+    
+    // Calcular calorias antes de atualizar
+    const caloriesThisInterval = calculateCaloriesBurned(heartRate);
+    if (!isNaN(caloriesThisInterval)) {
+        totalCaloriesBurned += caloriesThisInterval;
+    }
+    
+    updateChartAndCalories(heartRate);
+    sendToServer(heartRate, totalCaloriesBurned); // Envia para o servidor
+}
+        
+        // Função principal para conectar ao Frequencímetro Bluetooth
+        async function connectHeartRateMonitor() {
+            // Validar se os campos de dados pessoais foram preenchidos
+            const age = document.getElementById("ageInput").value;
+            const gender = document.getElementById("genderSelect").value;
+            const height = document.getElementById("heightInput").value;
+            const weight = document.getElementById("weightInput").value;
+            const activityLevel = document.getElementById("activityLevelSelect").value;
+
+            if (!age || !gender || !height || !weight || !activityLevel) {
+                showPopup('bluetoothStatusPopup', 'Por favor, preencha todos os seus dados pessoais antes de conectar o frequencímetro.');
+                return;
+            }
+            // Calcular FCM assim que os dados forem validados
+            maxHeartRate = 220 - age;
+            console.log("FCM Calculada:", maxHeartRate);
+
+            showPopup('bluetoothStatusPopup', 'Procurando dispositivos Bluetooth...');
+            try {
+                heartRateDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [HEART_RATE_SERVICE_UUID] }],
+                    optionalServices: []
+                });
+
+                console.log('Frequencímetro selecionado:', heartRateDevice);
+                showPopup('bluetoothStatusPopup', `Conectando a ${heartRateDevice.name || 'Dispositivo Desconhecido'}...`);
+
+                const server = await heartRateDevice.gatt.connect();
+                console.log('Servidor GATT conectado:', server);
+                showPopup('bluetoothStatusPopup', 'Conectado ao frequencímetro!');
+
+                document.getElementById("Username1").innerText = document.getElementById("nameInput").value;
+
+                const service = await server.getPrimaryService(HEART_RATE_SERVICE_UUID);
+                console.log('Serviço de Frequência Cardíaca encontrado:', service);
+
+                const characteristic = await service.getCharacteristic(HEART_RATE_MEASUREMENT_CHARACTERISTIC_UUID);
+                console.log('Característica de Medição de Frequência Cardíaca encontrada:', characteristic);
+
+                await characteristic.startNotifications();
+                console.log('Notificações de Frequência Cardíaca iniciadas.');
+
+                characteristic.addEventListener('characteristicvaluechanged', handleHeartRateMeasurement);
+
+            } catch (error) {
+                console.error('Erro ao conectar ou ler dados do Frequencímetro:', error);
+                if (error.name === 'NotFoundError') {
+                    showPopup('bluetoothStatusPopup', 'Nenhum frequencímetro encontrado ou selecionado.');
+                } else if (error.name === 'NotAllowedError') {
+                    showPopup('bluetoothStatusPopup', 'Permissão de Bluetooth negada. Permita o acesso nas configurações do navegador.');
+                } else if (error.name === 'NetworkError') {
+                    showPopup('bluetoothStatusPopup', 'Bluetooth desativado ou não disponível.');
+                } else {
+                    showPopup('bluetoothStatusPopup', `Erro Bluetooth: ${error.message}`);
+                }
+            }
+        }
+
+        // Adicionar o evento de clique ao botão de conexão Bluetooth
+        document.getElementById('connectBluetoothBtn').addEventListener('click', connectHeartRateMonitor);
+
+        // Opcional: Lidar com a desconexão do dispositivo
+        if (navigator.bluetooth && navigator.bluetooth.addEventListener) {
+            navigator.bluetooth.addEventListener('disconnection', (event) => {
+                if (event.device === heartRateDevice) {
+                    console.log('Frequencímetro desconectado:', event.device.name);
+                    showPopup('bluetoothStatusPopup', 'Frequencímetro desconectado.');
+                    document.getElementById('heartRateDisplay').innerText = 'Aguardando dados...';
+                    document.getElementById('caloriesBurnedDisplay').innerText = '0 kcal';
+                    document.getElementById('heartRateDisplay1').innerText = 'Aguardando dados...';
+                    document.getElementById('caloriesBurnedDisplay1').innerText = '0 kcal';
+                    totalCaloriesBurned = 0; // Resetar calorias ao desconectar
+                }
+            });
+        }
+        // --- Fim do código para Frequência Cardíaca via Web Bluetooth API e Cálculo de Calorias ---
+    </script>
+</body>
+
+</html>
