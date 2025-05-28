@@ -3,169 +3,128 @@ const WebSocket = require('ws');
 const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000; // Usando a porta do Render
 
-// Configuração do banco de dados SQLite
-const db = new sqlite3.Database('./heartrate.db', (err) => {
-    if (err) {
-        console.error('Erro ao conectar ao banco de dados:', err.message);
-    } else {
-        console.log('Conectado ao banco de dados SQLite');
-        initializeDatabase();
-    }
+// Banco de dados
+const db = new sqlite3.Database(':memory:', (err) => { // Alterado para memória temporária
+    if (err) console.error(err);
+    else initializeDatabase();
 });
 
-function initializeDatabase() {
-    db.run(`CREATE TABLE IF NOT EXISTS students (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        age INTEGER,
-        max_hr INTEGER
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS sessions (
-        session_id TEXT PRIMARY KEY,
-        student_id TEXT,
-        start_time DATETIME,
-        end_time DATETIME,
-        FOREIGN KEY (student_id) REFERENCES students (id)
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS heartrate_data (
-        data_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        heart_rate INTEGER,
-        calories REAL,
-        zone INTEGER,
-        FOREIGN KEY (session_id) REFERENCES sessions (session_id)
-    )`);
-}
-
-// Servidor HTTP
-const server = app.listen(port, () => {
-    console.log(`Servidor rodando em http://localhost:${port}`);
-});
-
-// Servidor WebSocket
-const wss = new WebSocket.Server({ server });
-
-// Armazena alunos ativos em memória
+// Websocket Server
+const wss = new WebSocket.Server({ noServer: true });
 const activeStudents = new Map();
 
+// HTTP Server
+const server = app.listen(port, () => {
+    console.log(`Servidor rodando na porta ${port}`);
+});
+
+// Upgrade HTTP para WebSocket
+server.on('upgrade', (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+    });
+});
+
+// WebSocket Connection
 wss.on('connection', (ws) => {
-    console.log('Novo cliente conectado');
+    console.log('Nova conexão estabelecida');
 
     ws.on('message', (message) => {
+        console.log('Mensagem recebida:', message.toString()); // DEBUG
+        
         try {
             const data = JSON.parse(message);
             
             if (data.type === 'student_data') {
-                const studentData = processStudentData(data);
-                activeStudents.set(data.studentId, studentData);
-                
-                // Envia atualização para todos os dashboards
-                broadcastToDashboards({
-                    type: 'update',
-                    data: studentData
-                });
-                
-            } else if (data.type === 'dashboard_connect') {
-                // Envia todos os alunos ativos para o novo dashboard
-                ws.send(JSON.stringify({
-                    type: 'initial_data',
-                    data: Array.from(activeStudents.values())
-                }));
+                handleStudentData(ws, data);
+            } else if (data.type === 'professor_connect') {
+                handleProfessorConnect(ws);
             }
-            
         } catch (err) {
             console.error('Erro ao processar mensagem:', err);
         }
     });
 
-    ws.on('close', () => {
-        console.log('Cliente desconectado');
-    });
+    ws.on('close', () => console.log('Cliente desconectado'));
 });
 
-function processStudentData(data) {
-    // Calcular zona de treino (5 zonas)
-    const maxHR = 220 - data.age;
-    const percentage = (data.heartRate / maxHR) * 100;
-    let zone;
-    
-    if (percentage < 50) zone = 0;
-    else if (percentage < 60) zone = 1;
-    else if (percentage < 70) zone = 2;
-    else if (percentage < 80) zone = 3;
-    else if (percentage < 90) zone = 4;
-    else zone = 5;
-    
-    // Preparar dados para o dashboard
+// Funções principais
+function handleStudentData(ws, data) {
     const studentData = {
         id: data.studentId,
-        name: data.name || 'Aluno Desconhecido',
+        name: data.name || 'Aluno',
         heartRate: data.heartRate,
         calories: data.calories || 0,
-        zone: zone,
         age: data.age || 25,
-        maxHR: maxHR,
+        zone: calculateZone(data.heartRate, data.age),
         lastUpdate: new Date().toISOString()
     };
 
-    // Armazenar no banco de dados
-    db.serialize(() => {
-        db.get("SELECT id FROM students WHERE id = ?", [data.studentId], (err, row) => {
-            if (!row) {
-                db.run("INSERT INTO students (id, name, age, max_hr) VALUES (?, ?, ?, ?)", 
-                    [data.studentId, studentData.name, studentData.age, maxHR]);
-            }
-            
-            db.get(`SELECT session_id FROM sessions 
-                   WHERE student_id = ? AND end_time IS NULL`, 
-                   [data.studentId], (err, session) => {
-                
-                if (!session) {
-                    const sessionId = generateSessionId();
-                    db.run(`INSERT INTO sessions 
-                          (session_id, student_id, start_time) 
-                          VALUES (?, ?, datetime('now'))`, 
-                          [sessionId, data.studentId]);
-                    
-                    db.run(`INSERT INTO heartrate_data 
-                          (session_id, heart_rate, calories, zone) 
-                          VALUES (?, ?, ?, ?)`,
-                          [sessionId, data.heartRate, data.calories, zone]);
-                } else {
-                    db.run(`INSERT INTO heartrate_data 
-                          (session_id, heart_rate, calories, zone) 
-                          VALUES (?, ?, ?, ?)`,
-                          [session.session_id, data.heartRate, data.calories, zone]);
-                }
-            });
-        });
-    });
-
-    return studentData;
+    activeStudents.set(data.studentId, studentData);
+    broadcastUpdate(studentData);
+    storeInDatabase(studentData);
 }
 
-function broadcastToDashboards(data) {
+function handleProfessorConnect(ws) {
+    console.log('Dashboard do professor conectado');
+    ws.send(JSON.stringify({
+        type: 'initial_data',
+        data: Array.from(activeStudents.values())
+    }));
+}
+
+function broadcastUpdate(data) {
     wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(data));
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+                type: 'student_update',
+                data: data
+            }));
         }
     });
 }
 
-function generateSessionId() {
-    return 'sess-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+// Funções auxiliares
+function calculateZone(heartRate, age) {
+    if (!age || !heartRate) return -1;
+    const percentage = (heartRate / (220 - age)) * 100;
+    
+    if (percentage < 50) return 0;
+    if (percentage < 60) return 1;
+    if (percentage < 70) return 2;
+    if (percentage < 80) return 3;
+    if (percentage < 90) return 4;
+    return 5;
 }
 
-// Health check para o Render
+function storeInDatabase(data) {
+    // Implementação simplificada para testes
+    db.run(
+        `INSERT INTO heartrate_data(student_id, heart_rate, zone) 
+         VALUES(?, ?, ?)`,
+        [data.id, data.heartRate, data.zone]
+    );
+}
+
+function initializeDatabase() {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS heartrate_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT,
+            heart_rate INTEGER,
+            zone INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`
+    );
+}
+
+// Health Check
 app.get('/health', (req, res) => {
-    res.status(200).json({
+    res.json({
         status: 'UP',
         activeStudents: activeStudents.size,
-        dbConnected: db.open
+        lastUpdate: new Date()
     });
 });
