@@ -37,10 +37,10 @@ server.on('upgrade', (request, socket, head) => {
 // WebSocket Connection
 wss.on('connection', (ws) => {
     console.log('Nova conexão estabelecida');
-
+    console.log('Nova conexão - IP:', ws._socket.remoteAddress);
     ws.on('message', (message) => {
         console.log('Mensagem recebida:', message.toString()); // DEBUG
-        
+        console.log('Mensagem recebida de', ws._socket.remoteAddress, ':', message.toString());
         try {
             const data = JSON.parse(message);
             
@@ -70,21 +70,41 @@ function handleStudentData(ws, data) {
     };
 
     activeStudents.set(data.studentId, studentData);
-    broadcastUpdate(studentData);
+    broadcastUpdate(studentData, ws); // Passe a conexão do aluno como segundo parâmetro
     storeInDatabase(studentData);
 }
 
 function handleProfessorConnect(ws) {
     console.log('Dashboard do professor conectado');
-    ws.send(JSON.stringify({
-        type: 'initial_data',
-        data: Array.from(activeStudents.values())
-    }));
+    console.log('Dashboard conectado - Total alunos:', activeStudents.size);
+    / Garanta que o Map está sincronizado com o banco
+    db.all("SELECT DISTINCT student_id FROM heartrate_data WHERE timestamp > datetime('now', '-5 minutes')", 
+        (err, rows) => {
+            rows.forEach(row => {
+                if (!activeStudents.has(row.student_id)) {
+                    activeStudents.set(row.student_id, {
+                        id: row.student_id,
+                        name: 'Aluno Recuperado',
+                        heartRate: 0,
+                        zone: -1
+                    });
+                }
+            });
+            
+            ws.send(JSON.stringify({
+                type: 'initial_data',
+                data: Array.from(activeStudents.values())
+            }));
+        });
+    //ws.send(JSON.stringify({
+    //    type: 'initial_data',
+    //    data: Array.from(activeStudents.values())
+    //}));
 }
 
-function broadcastUpdate(data) {
+function broadcastUpdate(data, senderWs) {
     wss.clients.forEach(client => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
+        if (client !== senderWs && client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({
                 type: 'student_update',
                 data: data
