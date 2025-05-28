@@ -4,6 +4,14 @@ const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 const port = process.env.PORT || 10000; // Usando a porta do Render
+const express = require('express');
+
+// Adicione estas linhas para permitir CORS
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    next();
+});
 
 // Banco de dados
 const db = new sqlite3.Database(':memory:', (err) => { // Alterado para memória temporária
