@@ -77,7 +77,7 @@ function handleStudentData(ws, data) {
 function handleProfessorConnect(ws) {
     console.log('Dashboard do professor conectado');
     console.log('Dashboard conectado - Total alunos:', activeStudents.size);
-    / Garanta que o Map está sincronizado com o banco
+    // Garanta que o Map está sincronizado com o banco
     db.all("SELECT DISTINCT student_id FROM heartrate_data WHERE timestamp > datetime('now', '-5 minutes')", 
         (err, rows) => {
             rows.forEach(row => {
