@@ -1,10 +1,9 @@
-// server.js
 const express = require('express');
 const WebSocket = require('ws');
 const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Configuração do banco de dados SQLite
 const db = new sqlite3.Database('./heartrate.db', (err) => {
@@ -51,6 +50,9 @@ const server = app.listen(port, () => {
 // Servidor WebSocket
 const wss = new WebSocket.Server({ server });
 
+// Armazena alunos ativos em memória
+const activeStudents = new Map();
+
 wss.on('connection', (ws) => {
     console.log('Novo cliente conectado');
 
@@ -59,11 +61,23 @@ wss.on('connection', (ws) => {
             const data = JSON.parse(message);
             
             if (data.type === 'student_data') {
-                processStudentData(data);
-                broadcastUpdate(data);
+                const studentData = processStudentData(data);
+                activeStudents.set(data.studentId, studentData);
+                
+                // Envia atualização para todos os dashboards
+                broadcastToDashboards({
+                    type: 'update',
+                    data: studentData
+                });
+                
             } else if (data.type === 'dashboard_connect') {
-                sendInitialData(ws);
+                // Envia todos os alunos ativos para o novo dashboard
+                ws.send(JSON.stringify({
+                    type: 'initial_data',
+                    data: Array.from(activeStudents.values())
+                }));
             }
+            
         } catch (err) {
             console.error('Erro ao processar mensagem:', err);
         }
@@ -75,7 +89,7 @@ wss.on('connection', (ws) => {
 });
 
 function processStudentData(data) {
-    // Calcular zona de treino (com as novas faixas)
+    // Calcular zona de treino (5 zonas)
     const maxHR = 220 - data.age;
     const percentage = (data.heartRate / maxHR) * 100;
     let zone;
@@ -87,97 +101,71 @@ function processStudentData(data) {
     else if (percentage < 90) zone = 4;
     else zone = 5;
     
+    // Preparar dados para o dashboard
+    const studentData = {
+        id: data.studentId,
+        name: data.name || 'Aluno Desconhecido',
+        heartRate: data.heartRate,
+        calories: data.calories || 0,
+        zone: zone,
+        age: data.age || 25,
+        maxHR: maxHR,
+        lastUpdate: new Date().toISOString()
+    };
+
     // Armazenar no banco de dados
     db.serialize(() => {
-        // Verificar se o aluno já existe
         db.get("SELECT id FROM students WHERE id = ?", [data.studentId], (err, row) => {
             if (!row) {
                 db.run("INSERT INTO students (id, name, age, max_hr) VALUES (?, ?, ?, ?)", 
-                    [data.studentId, data.name, data.age, maxHR]);
+                    [data.studentId, studentData.name, studentData.age, maxHR]);
             }
             
-            // Verificar sessão ativa
-            db.get("SELECT session_id FROM sessions WHERE student_id = ? AND end_time IS NULL", 
-                [data.studentId], (err, session) => {
+            db.get(`SELECT session_id FROM sessions 
+                   WHERE student_id = ? AND end_time IS NULL`, 
+                   [data.studentId], (err, session) => {
+                
                 if (!session) {
                     const sessionId = generateSessionId();
-                    db.run("INSERT INTO sessions (session_id, student_id, start_time) VALUES (?, ?, datetime('now'))", 
-                        [sessionId, data.studentId]);
+                    db.run(`INSERT INTO sessions 
+                          (session_id, student_id, start_time) 
+                          VALUES (?, ?, datetime('now'))`, 
+                          [sessionId, data.studentId]);
                     
-                    // Inserir dados
-                    db.run("INSERT INTO heartrate_data (session_id, heart_rate, calories, zone) VALUES (?, ?, ?, ?)",
-                        [sessionId, data.heartRate, data.calories, zone]);
+                    db.run(`INSERT INTO heartrate_data 
+                          (session_id, heart_rate, calories, zone) 
+                          VALUES (?, ?, ?, ?)`,
+                          [sessionId, data.heartRate, data.calories, zone]);
                 } else {
-                    // Atualizar sessão existente
-                    db.run("INSERT INTO heartrate_data (session_id, heart_rate, calories, zone) VALUES (?, ?, ?, ?)",
-                        [session.session_id, data.heartRate, data.calories, zone]);
+                    db.run(`INSERT INTO heartrate_data 
+                          (session_id, heart_rate, calories, zone) 
+                          VALUES (?, ?, ?, ?)`,
+                          [session.session_id, data.heartRate, data.calories, zone]);
                 }
             });
         });
     });
+
+    return studentData;
 }
 
-function broadcastUpdate(data) {
+function broadcastToDashboards(data) {
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-                type: 'update',
-                data: prepareDataForDashboard(data)
-            }));
+            client.send(JSON.stringify(data));
         }
     });
-}
-
-function sendInitialData(ws) {
-    // Enviar dados iniciais para o dashboard
-    db.all("SELECT s.id, s.name, h.heart_rate, h.calories, h.zone, h.timestamp FROM students s JOIN sessions sess ON s.id = sess.student_id JOIN heartrate_data h ON sess.session_id = h.session_id WHERE sess.end_time IS NULL ORDER BY h.timestamp DESC", 
-        (err, rows) => {
-            if (!err) {
-                const activeStudents = {};
-                rows.forEach(row => {
-                    if (!activeStudents[row.id]) {
-                        activeStudents[row.id] = {
-                            id: row.id,
-                            name: row.name,
-                            heartRate: row.heart_rate,
-                            calories: row.calories,
-                            zone: row.zone,
-                            lastUpdate: row.timestamp
-                        };
-                    }
-                });
-                
-                ws.send(JSON.stringify({
-                    type: 'initial_data',
-                    data: Object.values(activeStudents)
-                }));
-            }
-        });
-}
-
-function prepareDataForDashboard(data) {
-    const maxHR = 220 - data.age;
-    const percentage = (data.heartRate / maxHR) * 100;
-    let zone;
-    
-    if (percentage < 50) zone = 0;
-    else if (percentage < 60) zone = 1;
-    else if (percentage < 70) zone = 2;
-    else if (percentage < 80) zone = 3;
-    else if (percentage < 90) zone = 4;
-    else zone = 5;
-    
-    return {
-        id: data.studentId,
-        name: data.name,
-        heartRate: data.heartRate,
-        calories: data.calories,
-        zone: zone,
-        age: data.age,
-        maxHR: maxHR
-    };
 }
 
 function generateSessionId() {
     return 'sess-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 }
+
+// Health check para o Render
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'UP',
+        activeStudents: activeStudents.size,
+        dbConnected: db.open
+    });
+});
