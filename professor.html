@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard de Monitoramento</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+.zone--1 { background-color: #9E9E9E !important; } /* Desconectado */
+.zone-0 { background-color: #8BC34A !important; }  /* w3-lime - abaixo de 50% */
+.zone-1 { background-color: #2196F3 !important; }  /* w3-blue */
+.zone-2 { background-color: #4CAF50 !important; }  /* w3-green */
+.zone-3 { background-color: #FFC107 !important; }  /* w3-yellow */
+.zone-4 { background-color: #FF9800 !important; }  /* w3-orange */
+.zone-5 { background-color: #F44336 !important; }  /* w3-red */
+        
+        .student-card {
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .student-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="w3-light-grey">
+
+<!-- Top container -->
+<div class="w3-bar w3-top w3-black w3-large" style="z-index:4">
+    <button class="w3-bar-item w3-button w3-hide-large w3-hover-none w3-hover-text-light-grey" onclick="w3_open();"><i class="fa fa-bars"></i>  Menu</button>
+    <span class="w3-bar-item w3-right">Dashboard do Professor</span>
+</div>
+
+<!-- Sidebar/menu -->
+<nav class="w3-sidebar w3-collapse w3-white w3-animate-left" style="z-index:3;width:300px;" id="mySidebar"><br>
+    <div class="w3-container w3-row">
+        <div class="w3-col s4">
+            <img src="/w3images/avatar2.png" class="w3-circle w3-margin-right" style="width:46px">
+        </div>
+        <div class="w3-col s8 w3-bar">
+            <span>Bem-vindo, <strong>Professor</strong></span><br>
+            <a href="#" class="w3-bar-item w3-button"><i class="fa fa-cog"></i></a>
+        </div>
+    </div>
+    <hr>
+    <div class="w3-container">
+        <h5>Turmas</h5>
+    </div>
+    <div class="w3-bar-block">
+        <a href="#" class="w3-bar-item w3-button w3-padding-16 w3-hide-large w3-dark-grey w3-hover-black" onclick="w3_close()" title="close menu"><i class="fa fa-remove fa-fw"></i>  Fechar Menu</a>
+        <a href="#" class="w3-bar-item w3-button w3-padding w3-blue"><i class="fa fa-users fa-fw"></i>  Turma A</a>
+        <a href="#" class="w3-bar-item w3-button w3-padding"><i class="fa fa-users fa-fw"></i>  Turma B</a>
+        <a href="#" class="w3-bar-item w3-button w3-padding"><i class="fa fa-bullseye fa-fw"></i>  Metas</a>
+        <a href="#" class="w3-bar-item w3-button w3-padding"><i class="fa fa-history fa-fw"></i>  Histórico</a>
+    </div>
+</nav>
+
+<!-- Overlay effect when opening sidebar on small screens -->
+<div class="w3-overlay w3-hide-large w3-animate-opacity" onclick="w3_close()" style="cursor:pointer" title="close side menu" id="myOverlay"></div>
+
+<!-- Main content -->
+<div class="w3-main" style="margin-left:300px;margin-top:43px;">
+
+    <!-- Alertas -->
+    <div class="w3-panel w3-pale-red w3-display-container" id="alertPanel" style="display:none;">
+        <span onclick="this.parentElement.style.display='none'"
+              class="w3-button w3-large w3-display-topright">&times;</span>
+        <h3>Alerta!</h3>
+        <p id="alertMessage">Aluno em zona de risco!</p>
+    </div>
+
+    <!-- Painel de status -->
+    <div class="w3-panel">
+        <div class="w3-row-padding" style="margin:0 -16px">
+            <div class="w3-twothird">
+                <h5>Monitoramento em Tempo Real</h5>
+                <div class="w3-row">
+                    <div class="w3-col m4 w3-margin-bottom">
+                        <div class="w3-container w3-red w3-padding-16">
+                            <div class="w3-left"><i class="fa fa-heartbeat w3-xxxlarge"></i></div>
+                            <div class="w3-right">
+                                <h3 id="totalStudents">0</h3>
+                            </div>
+                            <div class="w3-clear"></div>
+                            <h4>Alunos Ativos</h4>
+                        </div>
+                    </div>
+                    <div class="w3-col m4 w3-margin-bottom">
+                        <div class="w3-container w3-blue w3-padding-16">
+                            <div class="w3-left"><i class="fa fa-exclamation-triangle w3-xxxlarge"></i></div>
+                            <div class="w3-right">
+                                <h3 id="alertsCount">0</h3>
+                            </div>
+                            <div class="w3-clear"></div>
+                            <h4>Alertas</h4>
+                        </div>
+                    </div>
+                    <div class="w3-col m4 w3-margin-bottom">
+                        <div class="w3-container w3-teal w3-padding-16">
+                            <div class="w3-left"><i class="fa fa-fire w3-xxxlarge"></i></div>
+                            <div class="w3-right">
+                                <h3 id="avgCalories">0</h3>
+                            </div>
+                            <div class="w3-clear"></div>
+                            <h4>Média Calorias</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="w3-third">
+                <h5>Resumo da Turma</h5>
+                <button onclick="testConnection()" class="w3-button w3-red">
+    Testar Conexão
+</button>
+                <div class="w3-grey">
+                    <div class="w3-container w3-center w3-padding w3-green" style="width:25%" id="zone1Percentage">25%</div>
+                </div>
+                <p>
+                    <span class="w3-tag w3-green w3-round">Zona 1</span>
+                    <span class="w3-tag w3-yellow w3-round">Zona 2</span>
+                    <span class="w3-tag w3-orange w3-round">Zona 3</span>
+                    <span class="w3-tag w3-red w3-round">Zona 4</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Grid de alunos -->
+    <div class="w3-container">
+        <h5>Alunos Conectados</h5>
+        <div class="w3-row-padding w3-margin-bottom" id="studentsGrid">
+            <!-- Cards dos alunos serão gerados dinamicamente aqui -->
+            
+            <!-- Exemplo de card de aluno -->
+            <div class="w3-third">
+                <div id="statusUsername1" class="w3-container w3-round-xlarge w3-margin-bottom student-card zone-0">
+                    <div class="w3-row">
+                        <div class="w3-col s8">
+                            <h4 id="Username1">Nome do Aluno</h4>
+                            <div class="w3-row">
+                                <div class="w3-half">
+                                    <i class="fas fa-heartbeat"></i>
+                                    <span id="heartRateDisplay1">-- bpm</span>
+                                </div>
+                                <div class="w3-half">
+                                    <i class="fas fa-fire"></i>
+                                    <span id="caloriesBurnedDisplay1">-- kcal</span>
+                                </div>
+                            </div>
+                            <div class="w3-row w3-margin-top">
+                                <div class="w3-light-grey w3-round">
+                                    <div class="w3-container w3-blue w3-round" style="width:50%" id="exerciseIntensity1">50%</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="w3-col s4 w3-center">
+                            <img src="/w3images/avatar3.png" style="width:80px;height:80px" class="w3-circle">
+                            <div class="w3-small w3-margin-top" id="timeConnected1">0:00</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mais cards serão adicionados dinamicamente pelo JavaScript -->
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="w3-container">
+        <h5>Análise da Turma</h5>
+        <div class="w3-row-padding" style="margin:0 -16px">
+            <div class="w3-half">
+                <canvas id="heartRateChart" style="width:100%;max-width:700px"></canvas>
+            </div>
+            <div class="w3-half">
+                <canvas id="caloriesChart" style="width:100%;max-width:700px"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer class="w3-container w3-padding-16 w3-light-grey">
+        <p>Sistema de Monitoramento de Atividade Física</p>
+    </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Variáveis globais
+    let students = {};
+    let socket;
+    let heartRateChart, caloriesChart;
+    
+    // Inicialização quando a página carrega
+    window.onload = function() {
+        initializeCharts();
+        connectWebSocket();
+        // Simular dados para teste - remover na versão final
+        simulateData();
+    };
+    
+    // Configurar gráficos
+    function initializeCharts() {
+        const heartRateCtx = document.getElementById('heartRateChart').getContext('2d');
+        const caloriesCtx = document.getElementById('caloriesChart').getContext('2d');
+        
+        heartRateChart = new Chart(heartRateCtx, {
+            type: 'line',
+            data: {
+                labels: ['Zona 1', 'Zona 2', 'Zona 3', 'Zona 4'],
+                datasets: [{
+                    label: 'Distribuição de Frequência Cardíaca',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        '#4CAF50',
+                        '#FFC107',
+                        '#FF9800',
+                        '#F44336'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+        
+        caloriesChart = new Chart(caloriesCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Calorias Queimadas (kcal)',
+                    data: [],
+                    backgroundColor: '#2196F3',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+    
+    // Conectar ao WebSocket para receber dados em tempo real
+    function connectWebSocket() {
+socket = new WebSocket('wss://heartrate-monitor.onrender.com');
+
+socket.onopen = () => {
+    console.log('Conectado ao servidor');
+    socket.send(JSON.stringify({ type: 'professor_connect' }));
+};
+
+socket.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    
+    if (message.type === 'initial_data') {
+        message.data.forEach(student => {
+            createStudentCard(student);
+        });
+    }
+    else if (message.type === 'student_update') {
+        updateStudentCard(message.data);
+    }
+};
+
+    socket.onclose = function() {
+        console.log("Conexão perdida - reconectando...");
+        setTimeout(connectWebSocket, 5000);
+    };
+
+    socket.onerror = (error) => {
+    console.error("Erro na conexão:", error);
+    //document.getElementById('connectionStatus').textContent = "Erro de conexão";
+};
+}
+ 
+function createStudentCard(studentData) {
+    const studentId = studentData.id;
+    if (document.getElementById(`card-${studentId}`)) return;
+    const cardHTML = `
+            <div id="status-${studentId}" class="w3-container w3-round-xlarge w3-margin-bottom student-card zone-0">
+                <div class="w3-row">
+                    <div class="w3-col s8">
+                        <h4 id="name-${studentId}">${studentData.name}</h4>
+                        <div class="w3-row">
+                            <div class="w3-half">
+                                <i class="fas fa-heartbeat"></i>
+                                <span id="hr-${studentId}">-- bpm</span>
+                            </div>
+                            <div class="w3-half">
+                                <i class="fas fa-fire"></i>
+                                <span id="cal-${studentId}">-- kcal</span>
+                            </div>
+                        </div>
+                        <div class="w3-row w3-margin-top">
+                            <div class="w3-light-grey w3-round">
+                                <div class="w3-container w3-blue w3-round" style="width:0%" id="intensity-${studentId}">0%</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w3-col s4 w3-center">
+                        <img src="https://www.w3schools.com/w3images/avatar${Math.floor(Math.random() * 6) + 1}.png" style="width:80px;height:80px" class="w3-circle">
+                        <div class="w3-small w3-margin-top" id="time-${studentId}">0:00</div>
+                    </div>
+                </div>
+            </div>
+    `;
+    document.getElementById('studentsGrid').insertAdjacentHTML('beforeend', cardHTML);
+    updateStudentCard(studentData);
+}
+
+// Atualizar dados do aluno no dashboard
+// Atualizar a função updateStudentData
+function updateStudentData(studentData) {
+    const studentId = studentData.id;
+    
+    if (!students[studentId]) {
+        students[studentId] = {
+            connectedAt: new Date(),
+            heartRateHistory: [],
+            caloriesHistory: [],
+            name: studentData.name,
+            age: studentData.age,
+            maxHR: studentData.maxHR
+        };
+        addStudentCard(studentData);
+    }
+    
+    // Atualizar dados
+    students[studentId].lastUpdate = new Date();
+    students[studentId].heartRate = studentData.heartRate;
+    students[studentId].calories = studentData.calories;
+    students[studentId].zone = studentData.zone;
+    
+    // Atualizar histórico (mantendo apenas os últimos 100 registros)
+    students[studentId].heartRateHistory.push(studentData.heartRate);
+    if (students[studentId].heartRateHistory.length > 100) {
+        students[studentId].heartRateHistory.shift();
+    }
+    
+    students[studentId].caloriesHistory.push(studentData.calories);
+    if (students[studentId].caloriesHistory.length > 100) {
+        students[studentId].caloriesHistory.shift();
+    }
+    
+    // Atualizar interface
+    updateStudentCard(studentId);
+    updateSummary();
+    checkForAlerts(studentId);
+}
+
+    
+    
+    // Atualizar card do aluno
+function updateStudentCard(student) {
+    const card = document.querySelector(`#card-${student.id}`);
+    if (!card) return createStudentCard(student);
+    
+    card.querySelector('.heart-rate').textContent = `${student.heartRate} bpm`;
+    card.querySelector('.calories').textContent = `${student.calories.toFixed(1)} kcal`;
+    
+    // Atualiza zona
+    const zoneDiv = card.querySelector('.w3-container');
+    zoneDiv.className = `w3-container zone-${student.zone}`;
+    zoneDiv.style.width = `${student.heartRate}%`;
+    zoneDiv.textContent = `Zona ${student.zone}`;
+}
+
+    // Atualizar a função updateSummary para mostrar as 5 zonas
+function updateSummary() {
+    const studentIds = Object.keys(students);
+    document.getElementById('totalStudents').textContent = studentIds.length;
+    
+    let totalCalories = 0;
+    const zoneCounts = [0, 0, 0, 0, 0, 0]; // 0-5 zonas
+    
+    studentIds.forEach(id => {
+        totalCalories += students[id].calories;
+        if (students[id].zone >= 0 && students[id].zone <= 5) {
+            zoneCounts[students[id].zone]++;
+        }
+    });
+    
+    // Atualizar gráfico de zonas
+    heartRateChart.data.labels = ['<50%', '50-60%', '60-70%', '70-80%', '80-90%', '>90%'];
+    heartRateChart.data.datasets[0].data = zoneCounts;
+    heartRateChart.update();
+    
+    // Atualizar calorias médias
+    const avgCalories = studentIds.length > 0 ? Math.round(totalCalories / studentIds.length) : 0;
+    document.getElementById('avgCalories').textContent = avgCalories;
+    
+    // Atualizar gráfico de calorias
+    updateCaloriesChart();
+}
+    
+// Atualizar gráfico de calorias
+    function updateCaloriesChart() {
+        const studentIds = Object.keys(students);
+        
+        // Ordenar alunos por calorias (decrescente)
+        const sortedStudents = studentIds.map(id => ({
+            id,
+            name: document.getElementById(`name-${id}`).textContent,
+            calories: students[id].calories
+        })).sort((a, b) => b.calories - a.calories);
+        
+        // Pegar top 5
+        const topStudents = sortedStudents.slice(0, 5);
+        
+        // Atualizar gráfico
+        caloriesChart.data.labels = topStudents.map(s => s.name);
+        caloriesChart.data.datasets[0].data = topStudents.map(s => s.calories);
+        caloriesChart.update();
+    }
+    
+    // Verificar alertas (frequência cardíaca muito alta)
+    function checkForAlerts(studentId) {
+    const student = students[studentId];
+    if (!student) return;
+
+    // Alertas baseados em zonas e tempo
+    const zone = student.zone;
+    const timeInZone = (new Date() - student.zoneEnterTime) / 60000; // minutos
+    
+    if (zone === 5 && timeInZone > 2) {
+        showAlert(`${student.name} na Zona 5 (${student.heartRate}bpm) por mais de 2 minutos!`, 'w3-red');
+    } 
+    else if (zone === -1 && timeInZone > 5) {
+        showAlert(`${student.name} desconectado por mais de 5 minutos`, 'w3-grey');
+    }
+}
+
+// Atualize a função showAlert
+function showAlert(message, colorClass = 'w3-pale-red') {
+    const alertPanel = document.getElementById('alertPanel');
+    alertPanel.className = `w3-panel ${colorClass} w3-display-container`;
+    document.getElementById('alertMessage').textContent = message;
+    alertPanel.style.display = 'block';
+    
+    // Auto-esconder após 10 segundos
+    setTimeout(() => {
+        alertPanel.style.display = 'none';
+    }, 10000);
+}
+
+   // Determinar zona de treino com 5 zonas
+function determineZone(heartRate, age) {
+    if (!age || !heartRate) return -1;
+    
+    const maxHR = 220 - age;
+    const percentage = (heartRate / maxHR) * 100;
+    
+    if (percentage < 50) return 0;   // w3-lime
+    if (percentage < 60) return 1;   // w3-blue
+    if (percentage < 70) return 2;   // w3-green
+    if (percentage < 80) return 3;   // w3-yellow
+    if (percentage < 90) return 4;   // w3-orange
+    return 5;                        // w3-red
+}
+
+    
+    // Atualizar a cor do card baseado na zona
+function updateCardZone(cardElement, zone) {
+    // Remover todas as classes de zona
+    cardElement.className = cardElement.className.replace(/\bw3-\w+\b/g, '');
+    cardElement.classList.add('w3-card', 'w3-round-xlarge', 'w3-margin-bottom', 'student-card');
+    
+    // Adicionar classe da zona correspondente
+    switch(zone) {
+        case -1: // Desconectado
+            cardElement.classList.add('w3-light-grey');
+            break;
+        case 0: // Abaixo de 50%
+            cardElement.classList.add('w3-lime');
+            break;
+        case 1: // Zona 1 (50-60%)
+            cardElement.classList.add('w3-blue');
+            break;
+        case 2: // Zona 2 (60-70%)
+            cardElement.classList.add('w3-green');
+            break;
+        case 3: // Zona 3 (70-80%)
+            cardElement.classList.add('w3-yellow');
+            break;
+        case 4: // Zona 4 (80-90%)
+            cardElement.classList.add('w3-orange');
+            break;
+        case 5: // Zona 5 (>90%)
+            cardElement.classList.add('w3-red');
+            break;
+        default:
+            cardElement.classList.add('w3-light-grey');
+    }
+}
+
+    // Funções para menu responsivo
+    function w3_open() {
+        document.getElementById("mySidebar").style.display = "block";
+        document.getElementById("myOverlay").style.display = "block";
+    }
+     
+    function w3_close() {
+        document.getElementById("mySidebar").style.display = "none";
+        document.getElementById("myOverlay").style.display = "none";
+    }
+
+    // Substitua a função simulateData() por:
+function simulateTestData() {
+    // Simular 3 alunos de teste
+    const testStudents = [
+        { id: 'test1', name: 'Aluno Teste 1', age: 20, heartRate: 65, calories: 120 },
+        { id: 'test2', name: 'Aluno Teste 2', age: 22, heartRate: 78, calories: 185 },
+        { id: 'test3', name: 'Aluno Teste 3', age: 25, heartRate: 92, calories: 210 }
+    ];
+
+    testStudents.forEach(student => {
+        student.zone = determineZone(student.heartRate, student.age);
+        updateStudentData(student);
+    });
+}
+
+function testConnection() {
+    fetch('https://heartrate-monitor.onrender.com/health')
+        .then(r => r.json())
+        .then(console.log)
+        .catch(console.error);
+    
+    socket.send(JSON.stringify({ type: 'professor_connect' }));
+}
+</script>
+</body>
+</html>
