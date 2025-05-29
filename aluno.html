@@ -290,10 +290,25 @@ socket.onclose = function() {
 };
 
 // Função para enviar dados (será chamada pelo handleHeartRateMeasurement)
+// function sendToServer(heartRate, calories) {
+//     if (socket.readyState === WebSocket.OPEN) {
+//         const data = {
+//             id: studentId,
+//             name: document.getElementById("nameInput").value || "Aluno",
+//             heartRate: heartRate,
+//             calories: calories,
+//             age: parseInt(document.getElementById("ageInput").value) || 25,
+//             timestamp: Date.now()
+//         };
+//         socket.send(JSON.stringify(data));
+//         console.log("Dados enviados:", data);
+//     }
+// }
 function sendToServer(heartRate, calories) {
     if (socket.readyState === WebSocket.OPEN) {
         const data = {
-            id: studentId,
+            type: 'student_data',
+            studentId: studentId,
             name: document.getElementById("nameInput").value || "Aluno",
             heartRate: heartRate,
             calories: calories,
@@ -301,7 +316,7 @@ function sendToServer(heartRate, calories) {
             timestamp: Date.now()
         };
         socket.send(JSON.stringify(data));
-        console.log("Dados enviados:", data);
+        console.log("Dados Enviados:", data);
     }
 }
     

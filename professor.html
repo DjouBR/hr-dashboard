@@ -297,18 +297,18 @@ function createStudentCard(studentData) {
     const studentId = studentData.id;
     if (document.getElementById(`card-${studentId}`)) return;
     const cardHTML = `
-            <div id="status-${studentId}" class="w3-container w3-round-xlarge w3-margin-bottom student-card zone-0">
+            <div id="card-${studentId}" class="w3-container w3-round-xlarge w3-margin-bottom student-card zone-0">
                 <div class="w3-row">
                     <div class="w3-col s8">
                         <h4 id="name-${studentId}">${studentData.name}</h4>
                         <div class="w3-row">
                             <div class="w3-half">
                                 <i class="fas fa-heartbeat"></i>
-                                <span id="hr-${studentId}">-- bpm</span>
+                                <span id="hr-${studentId}" class="heart-rate">-- bpm</span>
                             </div>
                             <div class="w3-half">
                                 <i class="fas fa-fire"></i>
-                                <span id="cal-${studentId}">-- kcal</span>
+                                <span id="cal-${studentId}" class="calories">-- kcal</span>
                             </div>
                         </div>
                         <div class="w3-row w3-margin-top">
